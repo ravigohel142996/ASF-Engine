@@ -1,6 +1,7 @@
 """
 AI System Failure Forecast Engine - Main Application
 Production-grade ML system monitoring and failure prediction dashboard
+Enterprise SaaS Edition v2.0.0
 """
 import streamlit as st
 import pandas as pd
@@ -11,6 +12,9 @@ import os
 
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+
+# Import authentication
+from auth.firebase_auth import SessionManager, require_auth
 
 from src.data.simulator import MLSystemDataSimulator
 from src.data.feature_engineering import FeatureEngineer
@@ -33,10 +37,15 @@ from src.dashboard.components import (
 
 # Page configuration
 st.set_page_config(
-    page_title="AI System Failure Forecast Engine",
+    page_title="ASF-Engine | AI Monitoring SaaS",
     page_icon="🤖",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
+    menu_items={
+        'Get Help': 'https://github.com/ravigohel142996/ASF-Engine',
+        'Report a bug': 'https://github.com/ravigohel142996/ASF-Engine/issues',
+        'About': '# ASF-Engine v2.0.0\nAI System Failure Monitoring SaaS Platform'
+    }
 )
 
 
@@ -127,23 +136,59 @@ def generate_forecast(metrics_df, hours=72):
 
 def main():
     """
-    Main application
+    Main application - Enterprise SaaS Edition with Authentication
     """
+    # Initialize session
+    SessionManager.init_session()
+    
+    # Check authentication
+    if not SessionManager.check_session_expiry():
+        st.warning("⚠️ Please log in to access the dashboard")
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            st.info("### 🔐 Authentication Required")
+            st.markdown("Please navigate to the login page to access the AI Monitoring Dashboard.")
+            
+            if st.button("Go to Login Page", use_container_width=True):
+                st.switch_page("pages/login.py")
+        st.stop()
+    
+    # Get current user
+    user = SessionManager.get_user()
+    
     # Apply custom styling
     apply_custom_css()
     
-    # Render header
-    render_header()
+    # Enhanced Header with user info
+    col1, col2, col3 = st.columns([3, 1, 1])
+    with col1:
+        render_header()
+    with col2:
+        st.markdown(f"**👤 {user['display_name']}**")
+        st.caption(user['email'])
+    with col3:
+        if st.button("🚪 Logout", use_container_width=True):
+            SessionManager.logout()
+            st.success("Logged out successfully!")
+            st.rerun()
     
     # Initialize system
     simulator, feature_engineer, model, risk_engine, alert_generator, recommendation_engine = initialize_system()
     
     # Sidebar controls
     with st.sidebar:
+        # User Profile Section
+        st.markdown("### 👤 Profile")
+        st.markdown(f"**{user['display_name']}**")
+        st.caption(f"{user['email']}")
+        st.caption(f"Role: {user.get('role', 'User').title()}")
+        st.markdown("---")
+        
         st.markdown("## ⚙️ Control Panel")
         
-        auto_refresh = st.checkbox("Auto-refresh", value=True)
-        refresh_interval = st.slider("Refresh interval (seconds)", 30, 300, 60)
+        auto_refresh = st.checkbox("Auto-refresh", value=False)
+        if auto_refresh:
+            refresh_interval = st.slider("Refresh interval (seconds)", 30, 300, 60)
         
         st.markdown("---")
         st.markdown("## 📊 Data Range")
@@ -301,7 +346,7 @@ def main():
             for action in mitigation_plan.get('long_term_actions', [])[:5]:
                 st.markdown(f"- {action}")
         
-        # Auto-refresh
+        # Auto-refresh (only if enabled)
         if auto_refresh:
             import time
             time.sleep(refresh_interval)
@@ -311,12 +356,13 @@ def main():
         st.error(f"An error occurred: {str(e)}")
         st.exception(e)
     
-    # Footer
+    # Enhanced Footer
     st.markdown("---")
     st.markdown("""
-    <div style='text-align: center; opacity: 0.6; padding: 20px;'>
-        <p>AI System Failure Forecast Engine v1.0.0</p>
-        <p>Built with enterprise-grade reliability standards</p>
+    <div style='text-align: center; opacity: 0.7; padding: 20px;'>
+        <p><strong>🤖 ASF-Engine v2.0.0 - Enterprise SaaS Edition</strong></p>
+        <p>AI System Failure Monitoring Platform | Built with enterprise-grade reliability</p>
+        <p>🔒 Secure | 🌐 Cloud Native | ⚡ Real-time Monitoring | 🚀 Production Ready</p>
     </div>
     """, unsafe_allow_html=True)
 
