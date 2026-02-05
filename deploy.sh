@@ -99,20 +99,47 @@ fi
 print_status "Repository cloned/updated"
 
 print_info "Step 8: Creating environment file..."
+POSTGRES_PASSWORD=$(openssl rand -base64 32)
+JWT_SECRET=$(openssl rand -base64 32)
+
 cat > .env << EOF
 # Database Configuration
 POSTGRES_DB=asf_engine
 POSTGRES_USER=asf_user
-POSTGRES_PASSWORD=$(openssl rand -base64 32)
+POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
 
 # JWT Configuration
-JWT_SECRET_KEY=$(openssl rand -base64 32)
+JWT_SECRET_KEY=${JWT_SECRET}
 
 # Application Configuration
 DOMAIN=${DOMAIN}
 EMAIL=${EMAIL}
+
+# CORS Configuration
+CORS_ORIGINS=http://${DOMAIN},https://${DOMAIN},http://www.${DOMAIN},https://www.${DOMAIN}
 EOF
+
+# Save credentials to a secure file
+cat > /root/asf-credentials.txt << EOF
+ASF-Engine Credentials
+=====================
+Generated: $(date)
+
+Database:
+- Host: localhost
+- Port: 5432
+- Database: asf_engine
+- User: asf_user
+- Password: ${POSTGRES_PASSWORD}
+
+JWT Secret: ${JWT_SECRET}
+
+IMPORTANT: Keep this file secure and delete after noting credentials!
+EOF
+
+chmod 600 /root/asf-credentials.txt
 print_status "Environment file created"
+print_info "Credentials saved to /root/asf-credentials.txt"
 
 print_info "Step 9: Configuring Nginx..."
 cat > /etc/nginx/sites-available/${APP_NAME} << 'EOF'

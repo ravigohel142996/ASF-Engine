@@ -8,14 +8,19 @@ from datetime import datetime
 import os
 
 # Database URL
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://asf_user:asf_password@localhost:5432/asf_engine"
-)
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-# For SQLite fallback (development)
-if not DATABASE_URL or "postgresql" not in DATABASE_URL:
-    DATABASE_URL = "sqlite:///./asf_engine.db"
+if not DATABASE_URL:
+    raise ValueError("DATABASE_URL environment variable must be set")
+
+# Validate PostgreSQL URL for production
+if "sqlite" in DATABASE_URL.lower():
+    import warnings
+    warnings.warn(
+        "Using SQLite database. This is only suitable for development. "
+        "Use PostgreSQL for production deployments.",
+        RuntimeWarning
+    )
 
 # Create engine
 engine = create_engine(DATABASE_URL, pool_pre_ping=True)

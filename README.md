@@ -237,27 +237,45 @@ ASF-Engine/
 
 ## 🔑 Environment Configuration
 
+⚠️ **Security Note**: All environment variables marked with `(required)` MUST be set before deployment. Never commit `.env` files to version control.
+
 Create a `.env` file from `.env.example`:
 
 ```bash
-# Database
+# Database (required)
 DATABASE_URL=postgresql://user:pass@localhost:5432/asf_engine
+POSTGRES_DB=asf_engine
+POSTGRES_USER=asf_user
+POSTGRES_PASSWORD=your-strong-password  # Generate with: openssl rand -base64 32
 
-# JWT Secret (generate with: openssl rand -base64 32)
-JWT_SECRET_KEY=your-secret-key-min-32-chars
+# JWT Secret (required - minimum 32 characters)
+JWT_SECRET_KEY=your-secret-key  # Generate with: openssl rand -base64 32
 
-# Firebase (optional)
+# CORS Origins (required for production)
+CORS_ORIGINS=http://yourdomain.com,https://yourdomain.com
+
+# Firebase (optional - for enhanced auth)
 FIREBASE_API_KEY=your_api_key
 FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+FIREBASE_PROJECT_ID=your-project-id
 
-# Stripe (for billing)
-STRIPE_API_KEY=sk_test_your_key
+# Stripe (required for billing features)
+STRIPE_API_KEY=sk_live_your_key  # Use sk_test_ for testing
 STRIPE_WEBHOOK_SECRET=whsec_your_secret
 
-# AWS (for deployment)
+# AWS (optional - for deployment)
 AWS_ACCESS_KEY_ID=your_access_key
 AWS_SECRET_ACCESS_KEY=your_secret_key
 ```
+
+### Security Best Practices
+
+1. **Generate Strong Secrets**: Use `openssl rand -base64 32` for all secrets
+2. **Environment Variables**: Never hardcode credentials in source code
+3. **CORS Configuration**: Restrict to specific domains in production
+4. **Database Passwords**: Use strong, unique passwords (minimum 32 characters)
+5. **SSL/TLS**: Always use HTTPS in production
+6. **Regular Updates**: Keep all dependencies up to date
 
 ## 🔐 Authentication
 

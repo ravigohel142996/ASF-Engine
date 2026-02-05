@@ -8,7 +8,9 @@ import stripe
 from datetime import datetime
 
 # Initialize Stripe
-stripe.api_key = os.getenv("STRIPE_API_KEY", "sk_test_your_stripe_key")
+stripe.api_key = os.getenv("STRIPE_API_KEY")
+if not stripe.api_key:
+    raise ValueError("STRIPE_API_KEY environment variable must be set for billing features")
 
 
 class SubscriptionPlan:

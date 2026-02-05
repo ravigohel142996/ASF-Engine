@@ -29,10 +29,13 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-# CORS middleware
+# CORS middleware - Configure for specific origins in production
+# Set CORS_ORIGINS environment variable with comma-separated origins
+ALLOWED_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:8501,http://localhost:3000").split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify allowed origins
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -157,10 +160,17 @@ async def register(user: UserCreate):
 async def login(credentials: UserLogin):
     """
     Login with email and password
+    NOTE: In production, this must validate against the database
     """
     try:
-        # In production, verify against database
-        # For demo, accept any credentials
+        db = next(get_db())
+        
+        # TODO: Replace with actual database validation
+        # This is a placeholder - implement proper authentication
+        # from backend.database import get_user_by_email, verify_password
+        # user = get_user_by_email(db, credentials.email)
+        # if not user or not verify_password(credentials.password, user.hashed_password):
+        #     raise HTTPException(status_code=401, detail="Invalid credentials")
         
         user_id = f"user_{credentials.email.split('@')[0]}"
         

@@ -8,7 +8,12 @@ from passlib.context import CryptContext
 import os
 
 # Security configuration
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-secret-key-change-in-production-min-32-chars")
+SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+if not SECRET_KEY:
+    raise ValueError("JWT_SECRET_KEY environment variable must be set")
+if len(SECRET_KEY) < 32:
+    raise ValueError("JWT_SECRET_KEY must be at least 32 characters long")
+
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 

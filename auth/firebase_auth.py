@@ -80,7 +80,16 @@ class FirebaseAuth:
                 }
             else:
                 error_data = response.json()
-                st.error(f"Login failed: {error_data.get('error', {}).get('message', 'Unknown error')}")
+                error_msg = error_data.get('error', {}).get('message', 'Authentication failed')
+                # Sanitize error message - don't expose internal details
+                if 'INVALID_PASSWORD' in error_msg:
+                    st.error("Login failed: Invalid email or password")
+                elif 'EMAIL_NOT_FOUND' in error_msg:
+                    st.error("Login failed: Invalid email or password")
+                elif 'USER_DISABLED' in error_msg:
+                    st.error("Login failed: Account has been disabled")
+                else:
+                    st.error("Login failed: Please check your credentials and try again")
                 return None
                 
         except Exception as e:
@@ -126,7 +135,16 @@ class FirebaseAuth:
                 }
             else:
                 error_data = response.json()
-                st.error(f"Signup failed: {error_data.get('error', {}).get('message', 'Unknown error')}")
+                error_msg = error_data.get('error', {}).get('message', 'Signup failed')
+                # Sanitize error messages
+                if 'EMAIL_EXISTS' in error_msg:
+                    st.error("Signup failed: Email already registered")
+                elif 'WEAK_PASSWORD' in error_msg:
+                    st.error("Signup failed: Password is too weak")
+                elif 'INVALID_EMAIL' in error_msg:
+                    st.error("Signup failed: Invalid email format")
+                else:
+                    st.error("Signup failed: Please check your information and try again")
                 return None
                 
         except Exception as e:
