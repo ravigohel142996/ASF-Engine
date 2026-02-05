@@ -8,13 +8,15 @@ This guide covers deploying ASF-Engine SaaS Platform to various environments.
 
 1. [Prerequisites](#prerequisites)
 2. [Local Development](#local-development)
-3. [Docker Deployment](#docker-deployment)
-4. [AWS EC2 Deployment](#aws-ec2-deployment)
-5. [Google Cloud Platform](#google-cloud-platform)
-6. [Kubernetes Deployment](#kubernetes-deployment)
-7. [Environment Configuration](#environment-configuration)
-8. [Post-Deployment](#post-deployment)
-9. [Monitoring & Maintenance](#monitoring--maintenance)
+3. [Streamlit Cloud Deployment](#streamlit-cloud-deployment)
+4. [Render Deployment](#render-deployment)
+5. [Docker Deployment](#docker-deployment)
+6. [AWS EC2 Deployment](#aws-ec2-deployment)
+7. [Google Cloud Platform](#google-cloud-platform)
+8. [Kubernetes Deployment](#kubernetes-deployment)
+9. [Environment Configuration](#environment-configuration)
+10. [Post-Deployment](#post-deployment)
+11. [Monitoring & Maintenance](#monitoring--maintenance)
 
 ## Prerequisites
 
@@ -62,6 +64,159 @@ docker-compose logs -f
 # Stop services
 docker-compose down
 ```
+
+## Streamlit Cloud Deployment
+
+### Setup Instructions
+
+1. **Fork or Push Repository to GitHub**
+
+2. **Configure Streamlit Cloud**
+   - Go to [share.streamlit.io](https://share.streamlit.io)
+   - Click "New app"
+   - Select your repository
+   - Set main file path: `app.py`
+
+3. **Configure Secrets**
+   - In Streamlit Cloud, go to App Settings > Secrets
+   - Add your environment variables in TOML format:
+
+```toml
+# Database (use managed PostgreSQL or Supabase)
+DATABASE_URL = "postgresql://user:password@host:5432/database"
+
+# JWT Secret (generate with: openssl rand -base64 32)
+JWT_SECRET_KEY = "your-jwt-secret-key-at-least-32-characters"
+
+# Firebase Configuration (Optional)
+FIREBASE_API_KEY = "your_firebase_api_key"
+FIREBASE_AUTH_DOMAIN = "your-project.firebaseapp.com"
+FIREBASE_PROJECT_ID = "your-project-id"
+
+# Email Configuration (Optional - for verification)
+SMTP_HOST = "smtp.gmail.com"
+SMTP_PORT = "587"
+SMTP_USER = "your_email@gmail.com"
+SMTP_PASSWORD = "your_app_password"
+BASE_URL = "https://your-app.streamlit.app"
+
+# Demo Credentials
+DEMO_EMAIL = "admin@test.com"
+DEMO_PASSWORD = "1234"
+```
+
+4. **Deploy**
+   - Click "Deploy"
+   - Wait for deployment to complete
+   - Your app will be available at `https://your-app-name.streamlit.app`
+
+### Database Options for Streamlit Cloud
+
+**Option 1: Supabase (Recommended)**
+```bash
+# Free PostgreSQL hosting
+# 1. Create account at supabase.com
+# 2. Create new project
+# 3. Copy connection string from Settings > Database
+# 4. Add to Streamlit secrets as DATABASE_URL
+```
+
+**Option 2: ElephantSQL**
+```bash
+# Free PostgreSQL hosting
+# 1. Create account at elephantsql.com
+# 2. Create new instance
+# 3. Copy connection URL
+# 4. Add to Streamlit secrets as DATABASE_URL
+```
+
+**Option 3: Neon**
+```bash
+# Free serverless PostgreSQL
+# 1. Create account at neon.tech
+# 2. Create new project
+# 3. Copy connection string
+# 4. Add to Streamlit secrets as DATABASE_URL
+```
+
+### Important Notes
+
+- ✅ No PYTHONPATH issues - imports work automatically
+- ✅ Pyrebase4 is included in requirements.txt
+- ✅ Environment variables are read from Streamlit secrets
+- ✅ System works with or without Firebase configured
+- ✅ Demo mode available for testing without Firebase
+
+## Render Deployment
+
+### Frontend (Streamlit) on Render
+
+1. **Create New Web Service**
+   - Go to [render.com](https://render.com)
+   - Click "New" > "Web Service"
+   - Connect your GitHub repository
+
+2. **Configure Service**
+   - Name: `asf-engine-frontend`
+   - Environment: `Python 3`
+   - Build Command: `pip install -r requirements.txt`
+   - Start Command: `streamlit run app.py --server.port=$PORT --server.address=0.0.0.0`
+
+3. **Environment Variables**
+   Add these in Render dashboard:
+   ```
+   DATABASE_URL=postgresql://user:password@host/database
+   JWT_SECRET_KEY=your-jwt-secret-key
+   FIREBASE_API_KEY=your_firebase_api_key
+   FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+   FIREBASE_PROJECT_ID=your-project-id
+   SMTP_HOST=smtp.gmail.com
+   SMTP_PORT=587
+   SMTP_USER=your_email@gmail.com
+   SMTP_PASSWORD=your_app_password
+   BASE_URL=https://your-app.onrender.com
+   DEMO_EMAIL=admin@test.com
+   DEMO_PASSWORD=1234
+   ```
+
+4. **Deploy**
+   - Click "Create Web Service"
+   - Wait for deployment
+   - Your app will be at `https://your-app.onrender.com`
+
+### Backend (FastAPI) on Render
+
+1. **Create Another Web Service**
+   - Name: `asf-engine-backend`
+   - Build Command: `pip install -r requirements.txt`
+   - Start Command: `uvicorn backend.main:app --host 0.0.0.0 --port $PORT`
+
+2. **Add Same Environment Variables**
+
+3. **Update Frontend Environment**
+   - Add `BACKEND_API_URL=https://your-backend.onrender.com` to frontend
+
+### Database on Render
+
+**Option 1: Render PostgreSQL (Paid)**
+```bash
+# Create new PostgreSQL database in Render
+# Copy internal connection string
+# Use in DATABASE_URL
+```
+
+**Option 2: External Database**
+- Use Supabase, ElephantSQL, or Neon (free options)
+- Add connection string to both frontend and backend
+
+### Production Considerations
+
+- ✅ Free tier available on Render (with limitations)
+- ✅ Automatic SSL certificates
+- ✅ Auto-deploy on git push
+- ✅ Health checks and monitoring
+- ⚠️ Free tier services sleep after inactivity
+- 💡 Use paid tier for production workloads
 
 ## Docker Deployment
 
