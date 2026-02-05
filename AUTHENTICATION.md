@@ -79,13 +79,24 @@ python backend/main.py
 2. Enable Email/Password authentication
 3. Get your Firebase credentials (API Key, Project ID, Auth Domain)
 4. Configure in `.env` file
+5. Install pyrebase4: `pip install pyrebase4`
 
 **Features:**
-- Enterprise-grade authentication
+- Enterprise-grade authentication using Pyrebase4
 - Social login support (Google, Facebook, etc.)
 - Automatic token refresh
 - Built-in security rules
 - User data synced to PostgreSQL
+- Graceful fallback to REST API if pyrebase not available
+
+**Implementation:**
+The system uses Pyrebase4 for Firebase authentication, which provides:
+- Better error handling
+- Built-in token management
+- Simpler API for authentication operations
+- Automatic request retry logic
+
+If pyrebase4 is not installed, the system automatically falls back to Firebase REST API.
 
 ### Mode 2: PostgreSQL Only (Self-Hosted)
 

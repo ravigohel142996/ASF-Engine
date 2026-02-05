@@ -2,6 +2,7 @@
 Firebase Authentication Integration
 Provides email/password and Google OAuth authentication
 Integrated with PostgreSQL database for user management
+Uses Pyrebase4 for Firebase Authentication
 """
 import streamlit as st
 import json
@@ -10,6 +11,15 @@ import sys
 from typing import Optional, Dict, Any
 import requests
 from datetime import datetime, timedelta
+
+# Try to import pyrebase4, fallback to requests if not available
+try:
+    import pyrebase
+    PYREBASE_AVAILABLE = True
+except ImportError:
+    PYREBASE_AVAILABLE = False
+    import warnings
+    warnings.warn("pyrebase4 not installed. Falling back to REST API mode. Install with: pip install pyrebase4")
 
 # Add backend to path for database access
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
@@ -30,7 +40,7 @@ class FirebaseAuth:
     
     def __init__(self, config: Optional[Dict[str, str]] = None):
         """
-        Initialize Firebase Auth
+        Initialize Firebase Auth with Pyrebase4
         
         Args:
             config: Firebase configuration dictionary
@@ -42,11 +52,30 @@ class FirebaseAuth:
         self.auth_domain = config.get('authDomain', os.getenv('FIREBASE_AUTH_DOMAIN', ''))
         self.project_id = config.get('projectId', os.getenv('FIREBASE_PROJECT_ID', ''))
         
-        # Firebase Auth REST API endpoints
+        # Firebase Auth REST API endpoints (fallback)
         self.auth_url = f"https://identitytoolkit.googleapis.com/v1/accounts"
         
         # Check if Firebase is configured
         self.is_firebase_configured = bool(self.api_key and self.project_id)
+        
+        # Initialize Pyrebase Firebase App if available and configured
+        self.firebase = None
+        self.auth = None
+        if PYREBASE_AVAILABLE and self.is_firebase_configured:
+            try:
+                firebase_config = {
+                    "apiKey": self.api_key,
+                    "authDomain": self.auth_domain,
+                    "projectId": self.project_id,
+                    "databaseURL": config.get('databaseURL', ''),  # Optional
+                    "storageBucket": config.get('storageBucket', ''),  # Optional
+                }
+                self.firebase = pyrebase.initialize_app(firebase_config)
+                self.auth = self.firebase.auth()
+            except Exception as e:
+                st.warning(f"Failed to initialize Pyrebase: {str(e)}. Falling back to REST API.")
+                self.firebase = None
+                self.auth = None
         
         # Initialize email service
         self.email_service = EmailService()
@@ -72,7 +101,7 @@ class FirebaseAuth:
     
     def sign_in_with_email_password(self, email: str, password: str) -> Optional[Dict[str, Any]]:
         """
-        Sign in with email and password
+        Sign in with email and password using Pyrebase or fallback to REST API
         Supports both Firebase and PostgreSQL authentication
         
         Args:
@@ -103,54 +132,105 @@ class FirebaseAuth:
                 
                 # Try Firebase authentication if configured
                 if self.is_firebase_configured:
-                    url = f"{self.auth_url}:signInWithPassword?key={self.api_key}"
-                    payload = {
-                        "email": email,
-                        "password": password,
-                        "returnSecureToken": True
-                    }
+                    firebase_uid = None
+                    id_token = None
+                    refresh_token = None
                     
-                    response = requests.post(url, json=payload)
+                    # Use Pyrebase if available
+                    if self.auth:
+                        try:
+                            user = self.auth.sign_in_with_email_and_password(email, password)
+                            firebase_uid = user['localId']
+                            id_token = user['idToken']
+                            refresh_token = user['refreshToken']
+                            
+                            # Update or create user in PostgreSQL
+                            if not db_user:
+                                db_user = create_user(
+                                    db, email, 
+                                    get_password_hash(password),
+                                    user.get('displayName', email.split('@')[0]),
+                                    firebase_uid
+                                )
+                            
+                            # Update last login
+                            update_user_last_login(db, db_user.id)
+                            
+                            return {
+                                'user_id': str(db_user.id),
+                                'email': db_user.email,
+                                'token': id_token,
+                                'refresh_token': refresh_token,
+                                'expires_in': user.get('expiresIn', 3600),
+                                'display_name': db_user.full_name or email.split('@')[0],
+                                'role': db_user.role,
+                                'email_verified': db_user.email_verified
+                            }
+                        except Exception as firebase_error:
+                            error_msg = str(firebase_error)
+                            if db_user:
+                                increment_login_attempts(db, email)
+                            
+                            if 'INVALID_PASSWORD' in error_msg or 'INVALID_LOGIN_CREDENTIALS' in error_msg or 'EMAIL_NOT_FOUND' in error_msg:
+                                st.error("❌ Invalid email or password")
+                            elif 'USER_DISABLED' in error_msg:
+                                st.error("❌ Account has been disabled")
+                            elif 'TOO_MANY_ATTEMPTS' in error_msg:
+                                st.error("❌ Too many failed login attempts. Please try again later.")
+                            else:
+                                st.error(f"❌ Authentication failed: {error_msg}")
+                            return None
                     
-                    if response.status_code == 200:
-                        data = response.json()
-                        firebase_uid = data.get('localId')
-                        
-                        # Update or create user in PostgreSQL
-                        if not db_user:
-                            db_user = create_user(
-                                db, email, 
-                                get_password_hash(password),
-                                data.get('displayName', email.split('@')[0]),
-                                firebase_uid
-                            )
-                        
-                        # Update last login
-                        update_user_last_login(db, db_user.id)
-                        
-                        return {
-                            'user_id': str(db_user.id),
-                            'email': db_user.email,
-                            'token': data.get('idToken'),
-                            'refresh_token': data.get('refreshToken'),
-                            'expires_in': data.get('expiresIn'),
-                            'display_name': db_user.full_name or email.split('@')[0],
-                            'role': db_user.role,
-                            'email_verified': db_user.email_verified
-                        }
+                    # Fallback to REST API
                     else:
-                        # Firebase auth failed
-                        if db_user:
-                            increment_login_attempts(db, email)
-                        error_data = response.json()
-                        error_msg = error_data.get('error', {}).get('message', 'Authentication failed')
-                        if 'INVALID_PASSWORD' in error_msg or 'EMAIL_NOT_FOUND' in error_msg:
-                            st.error("❌ Invalid email or password")
-                        elif 'USER_DISABLED' in error_msg:
-                            st.error("❌ Account has been disabled")
+                        url = f"{self.auth_url}:signInWithPassword?key={self.api_key}"
+                        payload = {
+                            "email": email,
+                            "password": password,
+                            "returnSecureToken": True
+                        }
+                        
+                        response = requests.post(url, json=payload)
+                        
+                        if response.status_code == 200:
+                            data = response.json()
+                            firebase_uid = data.get('localId')
+                            
+                            # Update or create user in PostgreSQL
+                            if not db_user:
+                                db_user = create_user(
+                                    db, email, 
+                                    get_password_hash(password),
+                                    data.get('displayName', email.split('@')[0]),
+                                    firebase_uid
+                                )
+                            
+                            # Update last login
+                            update_user_last_login(db, db_user.id)
+                            
+                            return {
+                                'user_id': str(db_user.id),
+                                'email': db_user.email,
+                                'token': data.get('idToken'),
+                                'refresh_token': data.get('refreshToken'),
+                                'expires_in': data.get('expiresIn'),
+                                'display_name': db_user.full_name or email.split('@')[0],
+                                'role': db_user.role,
+                                'email_verified': db_user.email_verified
+                            }
                         else:
-                            st.error("❌ Authentication failed. Please try again.")
-                        return None
+                            # Firebase auth failed
+                            if db_user:
+                                increment_login_attempts(db, email)
+                            error_data = response.json()
+                            error_msg = error_data.get('error', {}).get('message', 'Authentication failed')
+                            if 'INVALID_PASSWORD' in error_msg or 'EMAIL_NOT_FOUND' in error_msg:
+                                st.error("❌ Invalid email or password")
+                            elif 'USER_DISABLED' in error_msg:
+                                st.error("❌ Account has been disabled")
+                            else:
+                                st.error("❌ Authentication failed. Please try again.")
+                            return None
                 
                 # Fallback to PostgreSQL authentication
                 elif db_user:
@@ -208,7 +288,7 @@ class FirebaseAuth:
     
     def sign_up_with_email_password(self, email: str, password: str, display_name: str = "") -> Optional[Dict[str, Any]]:
         """
-        Create new account with email and password
+        Create new account with email and password using Pyrebase or fallback to REST API
         Supports both Firebase and PostgreSQL user creation
         
         Args:
@@ -241,36 +321,64 @@ class FirebaseAuth:
                 
                 # Try Firebase signup if configured
                 if self.is_firebase_configured:
-                    url = f"{self.auth_url}:signUp?key={self.api_key}"
-                    payload = {
-                        "email": email,
-                        "password": password,
-                        "returnSecureToken": True
-                    }
+                    # Use Pyrebase if available
+                    if self.auth:
+                        try:
+                            user = self.auth.create_user_with_email_and_password(email, password)
+                            firebase_uid = user['localId']
+                            id_token = user['idToken']
+                            refresh_token = user['refreshToken']
+                            
+                            # Update display name in Firebase
+                            if display_name and id_token:
+                                try:
+                                    self.auth.update_profile(id_token, display_name=display_name)
+                                except Exception:
+                                    pass  # Non-critical if display name update fails
+                        except Exception as firebase_error:
+                            error_msg = str(firebase_error)
+                            if 'EMAIL_EXISTS' in error_msg:
+                                st.error("❌ Email already registered")
+                            elif 'WEAK_PASSWORD' in error_msg:
+                                st.error("❌ Password is too weak")
+                            elif 'INVALID_EMAIL' in error_msg:
+                                st.error("❌ Invalid email format")
+                            else:
+                                st.error(f"❌ Signup failed: {error_msg}")
+                            return None
                     
-                    response = requests.post(url, json=payload)
-                    
-                    if response.status_code == 200:
-                        data = response.json()
-                        firebase_uid = data.get('localId')
-                        id_token = data.get('idToken')
-                        refresh_token = data.get('refreshToken')
-                        
-                        # Update display name in Firebase
-                        if display_name:
-                            self._update_profile(id_token, display_name)
+                    # Fallback to REST API
                     else:
-                        error_data = response.json()
-                        error_msg = error_data.get('error', {}).get('message', 'Signup failed')
-                        if 'EMAIL_EXISTS' in error_msg:
-                            st.error("❌ Email already registered")
-                        elif 'WEAK_PASSWORD' in error_msg:
-                            st.error("❌ Password is too weak")
-                        elif 'INVALID_EMAIL' in error_msg:
-                            st.error("❌ Invalid email format")
+                        url = f"{self.auth_url}:signUp?key={self.api_key}"
+                        payload = {
+                            "email": email,
+                            "password": password,
+                            "returnSecureToken": True
+                        }
+                        
+                        response = requests.post(url, json=payload)
+                        
+                        if response.status_code == 200:
+                            data = response.json()
+                            firebase_uid = data.get('localId')
+                            id_token = data.get('idToken')
+                            refresh_token = data.get('refreshToken')
+                            
+                            # Update display name in Firebase
+                            if display_name:
+                                self._update_profile(id_token, display_name)
                         else:
-                            st.error("❌ Signup failed. Please try again.")
-                        return None
+                            error_data = response.json()
+                            error_msg = error_data.get('error', {}).get('message', 'Signup failed')
+                            if 'EMAIL_EXISTS' in error_msg:
+                                st.error("❌ Email already registered")
+                            elif 'WEAK_PASSWORD' in error_msg:
+                                st.error("❌ Password is too weak")
+                            elif 'INVALID_EMAIL' in error_msg:
+                                st.error("❌ Invalid email format")
+                            else:
+                                st.error("❌ Signup failed. Please try again.")
+                            return None
                 
                 # Create user in PostgreSQL
                 hashed_password = get_password_hash(password)
@@ -324,7 +432,7 @@ class FirebaseAuth:
     
     def refresh_token(self, refresh_token: str) -> Optional[Dict[str, Any]]:
         """
-        Refresh the authentication token
+        Refresh the authentication token using Pyrebase or fallback to REST API
         
         Args:
             refresh_token: Refresh token from previous authentication
@@ -333,6 +441,19 @@ class FirebaseAuth:
             New token data if successful
         """
         try:
+            # Use Pyrebase if available
+            if self.auth:
+                try:
+                    user = self.auth.refresh(refresh_token)
+                    return {
+                        'token': user['idToken'],
+                        'refresh_token': user['refreshToken'],
+                        'expires_in': user.get('expiresIn', 3600)
+                    }
+                except Exception:
+                    return None
+            
+            # Fallback to REST API
             url = f"https://securetoken.googleapis.com/v1/token?key={self.api_key}"
             payload = {
                 "grant_type": "refresh_token",
@@ -349,12 +470,12 @@ class FirebaseAuth:
                     'expires_in': data.get('expires_in')
                 }
             return None
-        except:
+        except Exception:
             return None
     
     def verify_token(self, id_token: str) -> Optional[Dict[str, Any]]:
         """
-        Verify an ID token
+        Verify an ID token using Pyrebase or fallback to REST API
         
         Args:
             id_token: Firebase ID token
@@ -363,6 +484,23 @@ class FirebaseAuth:
             User data if token is valid
         """
         try:
+            # Use Pyrebase if available
+            if self.auth:
+                try:
+                    account_info = self.auth.get_account_info(id_token)
+                    users = account_info.get('users', [])
+                    if users:
+                        user = users[0]
+                        return {
+                            'user_id': user.get('localId'),
+                            'email': user.get('email'),
+                            'display_name': user.get('displayName', user.get('email', '').split('@')[0]),
+                            'email_verified': user.get('emailVerified', False)
+                        }
+                except Exception:
+                    return None
+            
+            # Fallback to REST API
             url = f"{self.auth_url}:lookup?key={self.api_key}"
             payload = {"idToken": id_token}
             
@@ -380,7 +518,7 @@ class FirebaseAuth:
                         'email_verified': user.get('emailVerified', False)
                     }
             return None
-        except:
+        except Exception:
             return None
     
     def request_password_reset(self, email: str) -> bool:
