@@ -4,8 +4,12 @@ Database configuration and models using SQLAlchemy
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean, Text, JSON
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Database URL
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -75,7 +79,7 @@ class Metric(Base):
     metric_type = Column(String, index=True)
     value = Column(Float)
     unit = Column(String)
-    metadata = Column(JSON)
+    meta_data = Column(JSON)  # Renamed from metadata to avoid SQLAlchemy conflict
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -89,7 +93,7 @@ class Alert(Base):
     status = Column(String, default="open")  # open, acknowledged, resolved
     message = Column(Text)
     source = Column(String)
-    metadata = Column(JSON)
+    meta_data = Column(JSON)  # Renamed from metadata
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
     resolved_at = Column(DateTime, nullable=True)
 
@@ -103,7 +107,7 @@ class Log(Base):
     level = Column(String, index=True)  # debug, info, warning, error, critical
     message = Column(Text)
     source = Column(String)
-    metadata = Column(JSON)
+    meta_data = Column(JSON)  # Renamed from metadata
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
 
 
@@ -117,7 +121,7 @@ class Model(Base):
     model_type = Column(String)  # lstm, xgboost, hybrid
     accuracy = Column(Float)
     is_active = Column(Boolean, default=False)
-    metadata = Column(JSON)
+    meta_data = Column(JSON)  # Renamed from metadata
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -249,14 +253,14 @@ def update_user_password(db, user_id: int, hashed_password: str):
     return user
 
 
-def create_metric(db, user_id: int, metric_type: str, value: float, unit: str = "", metadata: dict = None):
+def create_metric(db, user_id: int, metric_type: str, value: float, unit: str = "", meta_data: dict = None):
     """Create a new metric record"""
     metric = Metric(
         user_id=user_id,
         metric_type=metric_type,
         value=value,
         unit=unit,
-        metadata=metadata or {}
+        meta_data=meta_data or {}
     )
     db.add(metric)
     db.commit()
@@ -264,14 +268,14 @@ def create_metric(db, user_id: int, metric_type: str, value: float, unit: str = 
     return metric
 
 
-def create_alert(db, user_id: int, severity: str, message: str, source: str, metadata: dict = None):
+def create_alert(db, user_id: int, severity: str, message: str, source: str, meta_data: dict = None):
     """Create a new alert"""
     alert = Alert(
         user_id=user_id,
         severity=severity,
         message=message,
         source=source,
-        metadata=metadata or {}
+        meta_data=meta_data or {}
     )
     db.add(alert)
     db.commit()
