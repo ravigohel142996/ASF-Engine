@@ -3,7 +3,7 @@ Subscription Management Page
 Allows users to view and manage their subscription plans
 """
 import streamlit as st
-from auth.firebase_auth import SessionManager
+from auth.simple_auth import SimpleAuth
 from business.billing import SubscriptionPlan, BillingService
 
 
@@ -11,16 +11,16 @@ def render_subscription_page():
     """Render subscription management page"""
     
     # Initialize session
-    SessionManager.init_session()
+    SimpleAuth.init_session()
     
     # Check authentication
-    if not SessionManager.check_session_expiry():
+    if not SimpleAuth.is_logged_in():
         st.warning("⚠️ Please log in to access subscription management")
         if st.button("Go to Login"):
             st.switch_page("pages/login.py")
         st.stop()
     
-    user = SessionManager.get_user()
+    user = SimpleAuth.get_user()
     
     # Page header
     st.title("💳 Subscription Management")

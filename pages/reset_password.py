@@ -1,8 +1,7 @@
 """
-Password Reset Page
+Password Reset Page - Not Available in Simple Auth Mode
 """
 import streamlit as st
-from auth.firebase_auth import FirebaseAuth
 
 # Page configuration
 st.set_page_config(
@@ -15,39 +14,12 @@ st.set_page_config(
 def render_reset_password_page():
     """Render the password reset page"""
     
-    # Custom CSS
-    st.markdown("""
-    <style>
-    .reset-container {
-        max-width: 500px;
-        margin: 0 auto;
-        padding: 40px 20px;
-    }
-    .reset-header {
-        text-align: center;
-        margin-bottom: 40px;
-    }
-    .reset-header h1 {
-        color: #1E88E5;
-        font-size: 2.5em;
-        margin-bottom: 10px;
-    }
-    .stButton > button {
-        width: 100%;
-        background-color: #1E88E5;
-        color: white;
-        border-radius: 8px;
-        padding: 12px;
-        font-size: 16px;
-        font-weight: 600;
-        border: none;
-        margin-top: 10px;
-    }
-    .stButton > button:hover {
-        background-color: #1565C0;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+    st.title("🔑 Password Reset")
+    st.info("Password reset is not available in simple authentication mode.")
+    st.markdown("---")
+    
+    if st.button("Go to Login", use_container_width=True):
+        st.switch_page("pages/login.py")
     
     # Header
     st.markdown("""

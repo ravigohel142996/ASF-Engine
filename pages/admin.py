@@ -3,7 +3,7 @@ Admin Panel for ASF-Engine
 Administrative interface for managing users, system, and monitoring
 """
 import streamlit as st
-from auth.firebase_auth import SessionManager
+from auth.simple_auth import SimpleAuth
 from datetime import datetime
 import pandas as pd
 
@@ -12,16 +12,16 @@ def render_admin_panel():
     """Render admin panel page"""
     
     # Initialize session
-    SessionManager.init_session()
+    SimpleAuth.init_session()
     
     # Check authentication
-    if not SessionManager.check_session_expiry():
+    if not SimpleAuth.is_logged_in():
         st.warning("⚠️ Please log in to access the admin panel")
         if st.button("Go to Login"):
             st.switch_page("pages/login.py")
         st.stop()
     
-    user = SessionManager.get_user()
+    user = SimpleAuth.get_user()
     
     # Check if user is admin
     if user.get('role') != 'admin':
