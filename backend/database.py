@@ -4,8 +4,12 @@ Database configuration and models using SQLAlchemy
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean, Text, JSON
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Database URL
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -34,7 +38,7 @@ Base = declarative_base()
 
 # Database Models
 class User(Base):
-    """User model"""
+    """User model with enhanced authentication fields"""
     __tablename__ = "users"
     
     id = Column(Integer, primary_key=True, index=True)
@@ -43,8 +47,24 @@ class User(Base):
     full_name = Column(String)
     is_active = Column(Boolean, default=True)
     is_admin = Column(Boolean, default=False)
-    role = Column(String, default="user")
+    role = Column(String, default="user")  # user, admin, manager
     subscription_plan = Column(String, default="free")
+    
+    # Authentication fields
+    email_verified = Column(Boolean, default=False)
+    email_verification_token = Column(String, nullable=True)
+    password_reset_token = Column(String, nullable=True)
+    password_reset_expires = Column(DateTime, nullable=True)
+    
+    # Firebase integration
+    firebase_uid = Column(String, unique=True, nullable=True, index=True)
+    
+    # Security tracking
+    last_login = Column(DateTime, nullable=True)
+    login_attempts = Column(Integer, default=0)
+    locked_until = Column(DateTime, nullable=True)
+    
+    # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -59,7 +79,7 @@ class Metric(Base):
     metric_type = Column(String, index=True)
     value = Column(Float)
     unit = Column(String)
-    metadata = Column(JSON)
+    meta_data = Column(JSON)  # Renamed from metadata to avoid SQLAlchemy conflict
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -73,7 +93,7 @@ class Alert(Base):
     status = Column(String, default="open")  # open, acknowledged, resolved
     message = Column(Text)
     source = Column(String)
-    metadata = Column(JSON)
+    meta_data = Column(JSON)  # Renamed from metadata
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
     resolved_at = Column(DateTime, nullable=True)
 
@@ -87,7 +107,7 @@ class Log(Base):
     level = Column(String, index=True)  # debug, info, warning, error, critical
     message = Column(Text)
     source = Column(String)
-    metadata = Column(JSON)
+    meta_data = Column(JSON)  # Renamed from metadata
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
 
 
@@ -101,7 +121,7 @@ class Model(Base):
     model_type = Column(String)  # lstm, xgboost, hybrid
     accuracy = Column(Float)
     is_active = Column(Boolean, default=False)
-    metadata = Column(JSON)
+    meta_data = Column(JSON)  # Renamed from metadata
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -138,12 +158,13 @@ def get_db():
 
 
 # CRUD operations helper (simplified examples)
-def create_user(db, email: str, hashed_password: str, full_name: str):
+def create_user(db, email: str, hashed_password: str, full_name: str, firebase_uid: str = None):
     """Create a new user"""
     user = User(
         email=email,
         hashed_password=hashed_password,
-        full_name=full_name
+        full_name=full_name,
+        firebase_uid=firebase_uid
     )
     db.add(user)
     db.commit()
@@ -156,14 +177,90 @@ def get_user_by_email(db, email: str):
     return db.query(User).filter(User.email == email).first()
 
 
-def create_metric(db, user_id: int, metric_type: str, value: float, unit: str = "", metadata: dict = None):
+def get_user_by_firebase_uid(db, firebase_uid: str):
+    """Get user by Firebase UID"""
+    return db.query(User).filter(User.firebase_uid == firebase_uid).first()
+
+
+def update_user_last_login(db, user_id: int):
+    """Update user's last login timestamp"""
+    user = db.query(User).filter(User.id == user_id).first()
+    if user:
+        user.last_login = datetime.utcnow()
+        user.login_attempts = 0
+        db.commit()
+    return user
+
+
+def increment_login_attempts(db, email: str):
+    """Increment failed login attempts"""
+    user = db.query(User).filter(User.email == email).first()
+    if user:
+        user.login_attempts += 1
+        # Lock account after 5 failed attempts for 30 minutes
+        if user.login_attempts >= 5:
+            user.locked_until = datetime.utcnow() + timedelta(minutes=30)
+        db.commit()
+    return user
+
+
+def set_password_reset_token(db, email: str, token: str):
+    """Set password reset token"""
+    user = db.query(User).filter(User.email == email).first()
+    if user:
+        user.password_reset_token = token
+        user.password_reset_expires = datetime.utcnow() + timedelta(hours=1)
+        db.commit()
+    return user
+
+
+def verify_password_reset_token(db, token: str):
+    """Verify and get user by password reset token"""
+    user = db.query(User).filter(
+        User.password_reset_token == token,
+        User.password_reset_expires > datetime.utcnow()
+    ).first()
+    return user
+
+
+def set_email_verification_token(db, user_id: int, token: str):
+    """Set email verification token"""
+    user = db.query(User).filter(User.id == user_id).first()
+    if user:
+        user.email_verification_token = token
+        db.commit()
+    return user
+
+
+def verify_email(db, token: str):
+    """Verify email with token"""
+    user = db.query(User).filter(User.email_verification_token == token).first()
+    if user:
+        user.email_verified = True
+        user.email_verification_token = None
+        db.commit()
+    return user
+
+
+def update_user_password(db, user_id: int, hashed_password: str):
+    """Update user password"""
+    user = db.query(User).filter(User.id == user_id).first()
+    if user:
+        user.hashed_password = hashed_password
+        user.password_reset_token = None
+        user.password_reset_expires = None
+        db.commit()
+    return user
+
+
+def create_metric(db, user_id: int, metric_type: str, value: float, unit: str = "", meta_data: dict = None):
     """Create a new metric record"""
     metric = Metric(
         user_id=user_id,
         metric_type=metric_type,
         value=value,
         unit=unit,
-        metadata=metadata or {}
+        meta_data=meta_data or {}
     )
     db.add(metric)
     db.commit()
@@ -171,14 +268,14 @@ def create_metric(db, user_id: int, metric_type: str, value: float, unit: str = 
     return metric
 
 
-def create_alert(db, user_id: int, severity: str, message: str, source: str, metadata: dict = None):
+def create_alert(db, user_id: int, severity: str, message: str, source: str, meta_data: dict = None):
     """Create a new alert"""
     alert = Alert(
         user_id=user_id,
         severity=severity,
         message=message,
         source=source,
-        metadata=metadata or {}
+        meta_data=meta_data or {}
     )
     db.add(alert)
     db.commit()
