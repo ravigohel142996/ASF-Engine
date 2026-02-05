@@ -42,12 +42,17 @@ coverage.xml
 
 # Environments
 .env
+.env.local
+.env.production
 .venv
 env/
 venv/
 ENV/
 env.bak/
 venv.bak/
+
+# Firebase config
+config/firebase_config.json
 
 # IDEs
 .vscode/

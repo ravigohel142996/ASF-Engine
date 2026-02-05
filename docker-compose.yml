@@ -1,0 +1,97 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  database:
+    image: postgres:15-alpine
+    container_name: asf-database
+    environment:
+      POSTGRES_DB: asf_engine
+      POSTGRES_USER: asf_user
+      POSTGRES_PASSWORD: asf_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U asf_user -d asf_engine"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - asf-network
+
+  # FastAPI Backend
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: asf-backend
+    environment:
+      DATABASE_URL: postgresql://asf_user:asf_password@database:5432/asf_engine
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-your-secret-key-change-in-production-min-32-chars}
+      PORT: 8000
+    ports:
+      - "8000:8000"
+    depends_on:
+      database:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app/backend
+      - ./src:/app/src
+    networks:
+      - asf-network
+    command: uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Streamlit Frontend
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: asf-frontend
+    environment:
+      STREAMLIT_SERVER_PORT: 8501
+      STREAMLIT_SERVER_ADDRESS: 0.0.0.0
+      BACKEND_API_URL: http://backend:8000
+      DATABASE_URL: postgresql://asf_user:asf_password@database:5432/asf_engine
+    ports:
+      - "8501:8501"
+    depends_on:
+      - backend
+      - database
+    volumes:
+      - ./app.py:/app/app.py
+      - ./pages:/app/pages
+      - ./auth:/app/auth
+      - ./config:/app/config
+      - ./src:/app/src
+    networks:
+      - asf-network
+
+  # ML Service (for batch predictions and model training)
+  ml-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.ml
+    container_name: asf-ml-service
+    environment:
+      DATABASE_URL: postgresql://asf_user:asf_password@database:5432/asf_engine
+      MODEL_PATH: /app/models
+    volumes:
+      - ./src:/app/src
+      - ml_models:/app/models
+    depends_on:
+      - database
+    networks:
+      - asf-network
+    command: python -m src.models.train_service
+
+networks:
+  asf-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+  ml_models:
+    driver: local
