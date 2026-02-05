@@ -97,11 +97,21 @@ def render_login_page():
                         if user_data:
                             SessionManager.login(user_data)
                             st.success(f"✅ Welcome back, {user_data['display_name']}!")
+                            
+                            # Show email verification warning if not verified
+                            if not user_data.get('email_verified', False):
+                                st.warning("⚠️ Your email is not verified. Please check your inbox for the verification link.")
+                            
                             st.balloons()
                             st.rerun()
         
+        # Forgot password link
+        if st.button("🔑 Forgot Password?", key="forgot_pass_btn"):
+            st.session_state.show_forgot_password = True
+            st.rerun()
+        
         # Demo credentials info
-        st.info("💡 **Demo Mode**: If Firebase is not configured, you can use any email/password for testing.")
+        st.info(f"💡 **Demo Mode**: Use `{auth.demo_email}` / `{auth.demo_password}` for testing (if Firebase not configured).")
         
         st.markdown('</div>', unsafe_allow_html=True)
     
@@ -136,8 +146,36 @@ def render_login_page():
                         if user_data:
                             SessionManager.login(user_data)
                             st.success(f"✅ Account created successfully! Welcome, {name}!")
+                            st.info("📧 Please check your email to verify your account.")
                             st.balloons()
                             st.rerun()
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Forgot Password Modal
+    if st.session_state.get('show_forgot_password', False):
+        st.markdown("---")
+        st.markdown("### 🔑 Reset Password")
+        
+        with st.form("forgot_password_form"):
+            st.markdown("Enter your email address and we'll send you a link to reset your password.")
+            reset_email = st.text_input("Email", placeholder="your.email@company.com", key="reset_email")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                submit_reset = st.form_submit_button("📧 Send Reset Link")
+            with col2:
+                cancel_reset = st.form_submit_button("Cancel")
+            
+            if submit_reset:
+                if reset_email:
+                    auth.request_password_reset(reset_email)
+                else:
+                    st.error("❌ Please enter your email address")
+            
+            if cancel_reset:
+                st.session_state.show_forgot_password = False
+                st.rerun()
         
         st.markdown('</div>', unsafe_allow_html=True)
     

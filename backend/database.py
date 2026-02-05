@@ -34,7 +34,7 @@ Base = declarative_base()
 
 # Database Models
 class User(Base):
-    """User model"""
+    """User model with enhanced authentication fields"""
     __tablename__ = "users"
     
     id = Column(Integer, primary_key=True, index=True)
@@ -43,8 +43,24 @@ class User(Base):
     full_name = Column(String)
     is_active = Column(Boolean, default=True)
     is_admin = Column(Boolean, default=False)
-    role = Column(String, default="user")
+    role = Column(String, default="user")  # user, admin, manager
     subscription_plan = Column(String, default="free")
+    
+    # Authentication fields
+    email_verified = Column(Boolean, default=False)
+    email_verification_token = Column(String, nullable=True)
+    password_reset_token = Column(String, nullable=True)
+    password_reset_expires = Column(DateTime, nullable=True)
+    
+    # Firebase integration
+    firebase_uid = Column(String, unique=True, nullable=True, index=True)
+    
+    # Security tracking
+    last_login = Column(DateTime, nullable=True)
+    login_attempts = Column(Integer, default=0)
+    locked_until = Column(DateTime, nullable=True)
+    
+    # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -138,12 +154,13 @@ def get_db():
 
 
 # CRUD operations helper (simplified examples)
-def create_user(db, email: str, hashed_password: str, full_name: str):
+def create_user(db, email: str, hashed_password: str, full_name: str, firebase_uid: str = None):
     """Create a new user"""
     user = User(
         email=email,
         hashed_password=hashed_password,
-        full_name=full_name
+        full_name=full_name,
+        firebase_uid=firebase_uid
     )
     db.add(user)
     db.commit()
@@ -154,6 +171,82 @@ def create_user(db, email: str, hashed_password: str, full_name: str):
 def get_user_by_email(db, email: str):
     """Get user by email"""
     return db.query(User).filter(User.email == email).first()
+
+
+def get_user_by_firebase_uid(db, firebase_uid: str):
+    """Get user by Firebase UID"""
+    return db.query(User).filter(User.firebase_uid == firebase_uid).first()
+
+
+def update_user_last_login(db, user_id: int):
+    """Update user's last login timestamp"""
+    user = db.query(User).filter(User.id == user_id).first()
+    if user:
+        user.last_login = datetime.utcnow()
+        user.login_attempts = 0
+        db.commit()
+    return user
+
+
+def increment_login_attempts(db, email: str):
+    """Increment failed login attempts"""
+    user = db.query(User).filter(User.email == email).first()
+    if user:
+        user.login_attempts += 1
+        # Lock account after 5 failed attempts for 30 minutes
+        if user.login_attempts >= 5:
+            user.locked_until = datetime.utcnow() + timedelta(minutes=30)
+        db.commit()
+    return user
+
+
+def set_password_reset_token(db, email: str, token: str):
+    """Set password reset token"""
+    user = db.query(User).filter(User.email == email).first()
+    if user:
+        user.password_reset_token = token
+        user.password_reset_expires = datetime.utcnow() + timedelta(hours=1)
+        db.commit()
+    return user
+
+
+def verify_password_reset_token(db, token: str):
+    """Verify and get user by password reset token"""
+    user = db.query(User).filter(
+        User.password_reset_token == token,
+        User.password_reset_expires > datetime.utcnow()
+    ).first()
+    return user
+
+
+def set_email_verification_token(db, user_id: int, token: str):
+    """Set email verification token"""
+    user = db.query(User).filter(User.id == user_id).first()
+    if user:
+        user.email_verification_token = token
+        db.commit()
+    return user
+
+
+def verify_email(db, token: str):
+    """Verify email with token"""
+    user = db.query(User).filter(User.email_verification_token == token).first()
+    if user:
+        user.email_verified = True
+        user.email_verification_token = None
+        db.commit()
+    return user
+
+
+def update_user_password(db, user_id: int, hashed_password: str):
+    """Update user password"""
+    user = db.query(User).filter(User.id == user_id).first()
+    if user:
+        user.hashed_password = hashed_password
+        user.password_reset_token = None
+        user.password_reset_expires = None
+        db.commit()
+    return user
 
 
 def create_metric(db, user_id: int, metric_type: str, value: float, unit: str = "", metadata: dict = None):
