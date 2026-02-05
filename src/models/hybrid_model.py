@@ -10,12 +10,15 @@ import os
 
 try:
     from tensorflow import keras
-    from tensorflow.keras.models import Sequential, Model
+    from tensorflow.keras.models import Sequential, Model, load_model
     from tensorflow.keras.layers import LSTM, Dense, Dropout, Input
     from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
     TENSORFLOW_AVAILABLE = True
 except ImportError:
     TENSORFLOW_AVAILABLE = False
+    # Define dummy types when TensorFlow is not available
+    Model = None
+    Sequential = None
 
 try:
     import xgboost as xgb
@@ -145,7 +148,8 @@ class HybridFailurePredictionModel:
             'colsample_bytree': 0.8,
             'scale_pos_weight': len(y_train[y_train == 0]) / len(y_train[y_train == 1]),
             'eval_metric': 'auc',
-            'random_state': 42
+            'random_state': 42,
+            'early_stopping_rounds': 20
         }
         
         self.xgb_model = xgb.XGBClassifier(**params)
@@ -153,7 +157,6 @@ class HybridFailurePredictionModel:
         self.xgb_model.fit(
             X_train, y_train,
             eval_set=[(X_val, y_val)],
-            early_stopping_rounds=20,
             verbose=False
         )
         
@@ -275,7 +278,7 @@ class HybridFailurePredictionModel:
         # Load LSTM
         lstm_path = os.path.join(directory, 'lstm_model.h5')
         if os.path.exists(lstm_path) and TENSORFLOW_AVAILABLE:
-            self.lstm_model = keras.models.load_model(lstm_path)
+            self.lstm_model = load_model(lstm_path)
         
         # Load XGBoost
         xgb_path = os.path.join(directory, 'xgb_model.pkl')

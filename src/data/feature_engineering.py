@@ -148,7 +148,7 @@ class FeatureEngineer:
         df = self.create_anomaly_scores(df)
         
         # Fill NaN values created by rolling operations
-        df = df.fillna(method='bfill').fillna(0)
+        df = df.bfill().fillna(0)
         
         return df
     
