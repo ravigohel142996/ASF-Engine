@@ -17,10 +17,6 @@ def render_reset_password_page():
     st.title("🔑 Password Reset")
     st.info("Password reset is not available in simple authentication mode.")
     st.markdown("---")
-    st.markdown("**Default Credentials:**")
-    st.markdown("- Email: `admin@asf.com`")
-    st.markdown("- Password: `123456`")
-    st.markdown("---")
     
     if st.button("Go to Login", use_container_width=True):
         st.switch_page("pages/login.py")

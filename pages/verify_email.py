@@ -17,10 +17,6 @@ def render_verify_email_page():
     st.title("✉️ Email Verification")
     st.info("Email verification is not required in simple authentication mode.")
     st.markdown("---")
-    st.markdown("**Default Credentials:**")
-    st.markdown("- Email: `admin@asf.com`")
-    st.markdown("- Password: `123456`")
-    st.markdown("---")
     
     if st.button("Go to Login", use_container_width=True):
         st.switch_page("pages/login.py")

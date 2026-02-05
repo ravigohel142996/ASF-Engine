@@ -73,7 +73,7 @@ def render_login_page():
     
     with st.form("login_form"):
         st.markdown("### Welcome Back!")
-        email = st.text_input("Email", placeholder="admin@asf.com")
+        email = st.text_input("Email", placeholder="your.email@company.com")
         password = st.text_input("Password", type="password", placeholder="Enter your password")
         
         submit = st.form_submit_button("🚀 Login")
@@ -90,8 +90,10 @@ def render_login_page():
                     else:
                         st.error("❌ Invalid email or password")
     
-    # Demo credentials info
-    st.info("💡 **Demo Credentials**: Email: `admin@asf.com` | Password: `123456`")
+    # Demo credentials info - shown in expandable section
+    with st.expander("ℹ️ Demo Credentials"):
+        st.markdown("**Email:** `admin@asf.com`")
+        st.markdown("**Password:** `123456`")
     
     st.markdown('</div>', unsafe_allow_html=True)
     
