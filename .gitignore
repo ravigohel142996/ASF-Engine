@@ -51,6 +51,10 @@ ENV/
 env.bak/
 venv.bak/
 
+# Test database
+test_asf_engine.db
+*.db
+
 # Firebase config
 config/firebase_config.json
 
