@@ -333,7 +333,7 @@ class FirebaseAuth:
                             if display_name and id_token:
                                 try:
                                     self.auth.update_profile(id_token, display_name=display_name)
-                                except:
+                                except Exception:
                                     pass  # Non-critical if display name update fails
                         except Exception as firebase_error:
                             error_msg = str(firebase_error)
@@ -450,7 +450,7 @@ class FirebaseAuth:
                         'refresh_token': user['refreshToken'],
                         'expires_in': user.get('expiresIn', 3600)
                     }
-                except:
+                except Exception:
                     return None
             
             # Fallback to REST API
@@ -470,7 +470,7 @@ class FirebaseAuth:
                     'expires_in': data.get('expires_in')
                 }
             return None
-        except:
+        except Exception:
             return None
     
     def verify_token(self, id_token: str) -> Optional[Dict[str, Any]]:
@@ -497,7 +497,7 @@ class FirebaseAuth:
                             'display_name': user.get('displayName', user.get('email', '').split('@')[0]),
                             'email_verified': user.get('emailVerified', False)
                         }
-                except:
+                except Exception:
                     return None
             
             # Fallback to REST API
@@ -518,7 +518,7 @@ class FirebaseAuth:
                         'email_verified': user.get('emailVerified', False)
                     }
             return None
-        except:
+        except Exception:
             return None
     
     def request_password_reset(self, email: str) -> bool:
