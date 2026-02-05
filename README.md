@@ -24,11 +24,14 @@ ASF-Engine is a complete SaaS platform for AI system monitoring and failure pred
 ## ✨ Key Features
 
 ### 🔒 Authentication & Security
-- **Firebase Authentication**: Email/password and social login
+- **Firebase Authentication**: Email/password and social login via Pyrebase4
 - **JWT Tokens**: Secure API authentication
 - **Session Management**: Automatic session expiry
 - **Role-Based Access**: User, Admin roles
 - **Protected Routes**: Middleware-based protection
+- **Password Reset**: Secure email-based password recovery
+- **Email Verification**: Email verification on signup
+- **Account Lockout**: Protection against brute force attacks
 
 ### 🚀 Backend API (FastAPI)
 - **RESTful API**: `/api/v1/` endpoints
