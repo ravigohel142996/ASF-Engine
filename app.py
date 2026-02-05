@@ -14,7 +14,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 # Import authentication
-from auth.firebase_auth import SessionManager, require_auth
+from auth.simple_auth import SimpleAuth
 
 from src.data.simulator import MLSystemDataSimulator
 from src.data.feature_engineering import FeatureEngineer
@@ -139,10 +139,10 @@ def main():
     Main application - Enterprise SaaS Edition with Authentication
     """
     # Initialize session
-    SessionManager.init_session()
+    SimpleAuth.init_session()
     
     # Check authentication
-    if not SessionManager.check_session_expiry():
+    if not SimpleAuth.is_logged_in():
         st.warning("⚠️ Please log in to access the dashboard")
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
@@ -154,7 +154,7 @@ def main():
         st.stop()
     
     # Get current user
-    user = SessionManager.get_user()
+    user = SimpleAuth.get_user()
     
     # Apply custom styling
     apply_custom_css()
@@ -168,7 +168,7 @@ def main():
         st.caption(user['email'])
     with col3:
         if st.button("🚪 Logout", use_container_width=True):
-            SessionManager.logout()
+            SimpleAuth.logout()
             st.success("Logged out successfully!")
             st.rerun()
     
